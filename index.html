@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Which AML alerts get escalated? EDA by team Spotlight</title>
+<meta name="description" content="Exploratory data analysis of 14,000 AML alerts and 7 million transactions for the WIUT Hackathon 2026 FinTech track.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F6FA; --panel:#FFFFFF; --ink:#16213A; --ink-2:#46526E; --ink-3:#7A859F;
+  --rule:#D8DEEA; --grid:#E4E9F2; --lapis:#2447A6; --lapis-soft:#E3E9F8;
+  --dis:#16898A; --esc:#BE3349; --gold:#B7791A;
+  --serif:"IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --sans:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0C1426; --panel:#121C33; --ink:#E6EBF5; --ink-2:#AAB4CB; --ink-3:#7D89A4;
+    --rule:#26324D; --grid:#1D2941; --lapis:#8CA7F3; --lapis-soft:#1A2747;
+    --dis:#3EC3BF; --esc:#F26D82; --gold:#E3AF4B; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0C1426; --panel:#121C33; --ink:#E6EBF5; --ink-2:#AAB4CB; --ink-3:#7D89A4;
+  --rule:#26324D; --grid:#1D2941; --lapis:#8CA7F3; --lapis-soft:#1A2747;
+  --dis:#3EC3BF; --esc:#F26D82; --gold:#E3AF4B; color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 64px); scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0; background:var(--paper); color:var(--ink); font:400 17px/1.6 var(--sans); -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility}
+a{color:var(--lapis); text-underline-offset:3px}
+a:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--lapis); outline-offset:3px; border-radius:3px}
+
+.layout{display:grid; grid-template-columns:220px minmax(0,1fr); gap:0 56px; max-width:1180px; margin:0 auto; padding:0 32px}
+nav.rail{position:sticky; top:env(safe-area-inset-top,0px); align-self:start; height:100vh; padding:40px 0 24px; display:flex; flex-direction:column; gap:20px; overflow:auto}
+.rail .team{font:600 15px/1.3 var(--serif); color:var(--ink)}
+.rail .team span{display:block; font:400 13px/1.4 var(--sans); color:var(--ink-3); margin-top:2px}
+.rail ol{list-style:none; margin:0; padding:0; border-left:1px solid var(--rule)}
+.rail li a{display:block; padding:5px 0 5px 14px; margin-left:-1px; border-left:2px solid transparent; color:var(--ink-2); text-decoration:none; font-size:14px; line-height:1.35}
+.rail li a:hover{color:var(--ink)}
+.rail li a[aria-current="true"]{border-left-color:var(--lapis); color:var(--ink); font-weight:500}
+.theme-btn{margin-top:4px; align-self:flex-start; background:none; border:1px solid var(--rule); color:var(--ink-2); font:500 13px var(--sans); padding:6px 12px; border-radius:6px; cursor:pointer}
+.theme-btn:hover{color:var(--ink); border-color:var(--ink-3)}
+
+main{min-width:0; padding:40px 0 80px}
+section{padding:56px 0 8px; border-top:1px solid var(--rule)}
+section:first-of-type{border-top:0; padding-top:24px}
+.prose{max-width:66ch}
+h1{font:600 clamp(34px,4.6vw,54px)/1.08 var(--serif); letter-spacing:-0.015em; margin:0 0 20px; max-width:18ch}
+h2{font:600 clamp(25px,2.6vw,31px)/1.2 var(--serif); letter-spacing:-0.01em; margin:0 0 14px; max-width:30ch}
+h3{font:600 17px/1.35 var(--sans); margin:28px 0 6px}
+p{margin:0 0 14px}
+.dek{font-size:clamp(18px,1.6vw,20px); line-height:1.55; color:var(--ink-2); max-width:58ch}
+.byline{font-size:14px; color:var(--ink-3); margin-bottom:28px}
+.lead-num{font-variant-numeric:tabular-nums}
+strong{font-weight:600}
+.esc{color:var(--esc); font-weight:600}
+.dis{color:var(--dis); font-weight:600}
+
+figure{margin:26px 0 30px}
+figcaption{font-size:14px; line-height:1.5; color:var(--ink-3); margin-top:8px; max-width:70ch}
+.fig-title{font:600 15px/1.4 var(--sans); color:var(--ink); margin:0 0 2px}
+.fig-sub{font-size:14px; color:var(--ink-3); margin:0 0 8px}
+.chart{width:100%; position:relative}
+.chart svg{display:block; overflow:visible}
+.legend{display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13.5px; color:var(--ink-2); margin:4px 0 6px}
+.legend i{display:inline-block; width:11px; height:11px; border-radius:2px; margin-right:6px; vertical-align:-1px; background:var(--c)}
+.legend i.line{height:3px; vertical-align:3px; border-radius:2px}
+.legend i.dash{background:repeating-linear-gradient(90deg,var(--c) 0 5px,transparent 5px 8px)}
+
+/* series colour tokens (escalated/dismissed colours are never reused for anything else) */
+.s-esc{--c:var(--esc)} .s-dis{--c:var(--dis)} .s-main{--c:var(--lapis)} .s-gold{--c:var(--gold)} .s-muted{--c:var(--ink-3)}
+rect.bar{fill:var(--c)}
+path.ln{fill:none; stroke:var(--c); stroke-width:2.2; stroke-linejoin:round; stroke-linecap:round}
+path.ln.dash{stroke-dasharray:5 4}
+path.area{fill:var(--c); opacity:.08}
+circle.dot{fill:var(--c); stroke:var(--panel); stroke-width:1.5}
+line.grid{stroke:var(--grid); stroke-width:1}
+line.axis{stroke:var(--ink-3); stroke-width:1}
+line.ref{stroke:var(--ink-2); stroke-width:1.2; stroke-dasharray:4 4}
+line.cross{stroke:var(--ink-3); stroke-width:1}
+line.conn{stroke:var(--rule); stroke-width:3; stroke-linecap:round}
+text.tick{fill:var(--ink-3); font:400 12px var(--sans); font-variant-numeric:tabular-nums}
+text.axt{fill:var(--ink-2); font:500 12.5px var(--sans)}
+text.vlab{fill:var(--ink); font:600 12.5px var(--sans); font-variant-numeric:tabular-nums}
+text.reflab{fill:var(--ink-2); font:500 12px var(--sans)}
+text.rowlab{fill:var(--ink); font:400 13px var(--sans); paint-order:stroke; stroke:var(--paper); stroke-width:4px; stroke-linejoin:round}
+text.note{fill:var(--ink-2); font:italic 400 12.5px var(--sans)}
+rect.hcell{stroke:var(--panel); stroke-width:2}
+text.hval{font:600 13px var(--sans); font-variant-numeric:tabular-nums}
+.hero-anim rect.bar{transform-box:fill-box; transform-origin:50% 100%; animation:grow .9s cubic-bezier(.2,.7,.2,1) both}
+@keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@media (prefers-reduced-motion: reduce){.hero-anim rect.bar{animation:none}}
+
+#tip{position:fixed; z-index:20; pointer-events:none; background:var(--panel); color:var(--ink); border:1px solid var(--rule); box-shadow:0 6px 20px rgba(10,20,40,.14); border-radius:6px; padding:7px 10px; font-size:13px; line-height:1.45; max-width:260px}
+#tip .sw{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; background:var(--c)}
+
+.hero{display:grid; grid-template-columns:minmax(0,1fr); gap:8px}
+.hero-fig{background:var(--panel); border:1px solid var(--rule); border-radius:10px; padding:20px 22px 14px; margin-top:12px}
+.facts{display:flex; flex-wrap:wrap; gap:8px 28px; margin:22px 0 0; padding:0; list-style:none; font-size:15px; color:var(--ink-2)}
+.facts b{color:var(--ink); font-weight:600; font-variant-numeric:tabular-nums}
+
+.steps{list-style:none; counter-reset:s; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:0; margin:22px 0 8px; padding:0; border:1px solid var(--rule); border-radius:10px; overflow:hidden; background:var(--panel)}
+.steps li{counter-increment:s; padding:14px 14px 16px; border-left:1px solid var(--rule); font-size:14px; line-height:1.45; color:var(--ink-2)}
+.steps li:first-child{border-left:0}
+.steps li b{display:block; color:var(--ink); font-size:15px; margin-bottom:3px}
+.steps li b::before{content:counter(s) ". "; color:var(--lapis)}
+
+.tbl-wrap{overflow-x:auto; margin:18px 0 26px; border:1px solid var(--rule); border-radius:10px; background:var(--panel)}
+table{border-collapse:collapse; width:100%; min-width:560px; font-size:14.5px; line-height:1.45}
+th,td{text-align:left; padding:10px 14px; border-top:1px solid var(--rule); vertical-align:top}
+thead th{border-top:0; font-weight:600; color:var(--ink); background:var(--lapis-soft)}
+td.num,th.num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+code{font:500 13.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:var(--lapis-soft); padding:1px 5px; border-radius:4px}
+
+.two{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 36px}
+.multiples{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px 36px; margin-top:12px}
+.multiple{padding:14px 0 6px; border-top:1px solid var(--rule)}
+.multiple .m-head{display:flex; justify-content:space-between; gap:12px; align-items:baseline}
+.multiple .m-title{font:600 14.5px/1.35 var(--sans)}
+.multiple .m-meta{font-size:13px; color:var(--ink-3); white-space:nowrap; font-variant-numeric:tabular-nums}
+.multiple .m-fam{font-size:13px; color:var(--ink-3)}
+.multiple.top .m-title{color:var(--lapis)}
+
+.seg{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 10px}
+.seg button{font:500 13.5px var(--sans); color:var(--ink-2); background:var(--panel); border:1px solid var(--rule); border-radius:999px; padding:5px 12px; cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--lapis); border-color:var(--lapis); color:var(--panel)}
+.seg button:hover{border-color:var(--ink-3)}
+
+.callout{border-left:3px solid var(--lapis); padding:4px 0 4px 18px; margin:22px 0; max-width:62ch}
+.callout p{margin:0; font:500 19px/1.5 var(--serif); color:var(--ink)}
+
+.slider-row{display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; margin:6px 0 4px}
+.slider-row input{flex:1 1 220px; accent-color:var(--lapis)}
+.slider-out{font-size:16px; color:var(--ink-2); min-height:3.2em; max-width:60ch}
+.slider-out b{color:var(--ink); font-variant-numeric:tabular-nums}
+
+ul.ruled{list-style:none; padding:0; margin:14px 0}
+ul.ruled li{padding:12px 0; border-top:1px solid var(--rule); max-width:70ch}
+ul.ruled li b{color:var(--ink)}
+.conclusion ol{padding-left:22px; max-width:68ch}
+.conclusion li{margin-bottom:12px}
+footer{border-top:1px solid var(--rule); margin-top:56px; padding-top:20px; font-size:14px; color:var(--ink-3); max-width:70ch}
+
+@media (max-width: 900px){
+  .layout{grid-template-columns:minmax(0,1fr); padding:0 20px}
+  nav.rail{position:sticky; top:0; height:auto; z-index:10; flex-direction:row; align-items:center; gap:12px; padding:calc(env(safe-area-inset-top,0px) + 8px) 0 8px; margin:0 -20px; padding-left:20px; padding-right:20px; background:var(--paper); border-bottom:1px solid var(--rule); overflow-x:auto; overflow-y:hidden; top:0}
+  .rail .team span{display:none}
+  .rail .team{white-space:nowrap; font-size:14px}
+  .rail ol{display:flex; border-left:0; gap:2px}
+  .rail li a{white-space:nowrap; border-left:0; border-bottom:2px solid transparent; padding:4px 8px; margin:0}
+  .rail li a[aria-current="true"]{border-bottom-color:var(--lapis)}
+  .theme-btn{margin-top:0; white-space:nowrap}
+  html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 56px)}
+  main{padding-top:20px}
+  .two,.multiples{grid-template-columns:minmax(0,1fr)}
+  .steps{grid-template-columns:minmax(0,1fr)}
+  .steps li{border-left:0; border-top:1px solid var(--rule)}
+  .steps li:first-child{border-top:0}
+}
+@media (max-width: 520px){ body{font-size:16px} .hero-fig{padding:14px 12px 10px} }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="rail" aria-label="Sections">
+    <div class="team">Team Spotlight<span>WIUT Hackathon 2026, FinTech track</span></div>
+    <ol>
+      <li><a href="#answer">The short answer</a></li>
+      <li><a href="#approach">Approach</a></li>
+      <li><a href="#data">The data</a></li>
+      <li><a href="#target">The target</a></li>
+      <li><a href="#time">Activity over time</a></li>
+      <li><a href="#types">Direction and type</a></li>
+      <li><a href="#amounts">Transaction sizes</a></li>
+      <li><a href="#redflags">Red flags tested</a></li>
+      <li><a href="#relative">The key pattern</a></li>
+      <li><a href="#ruledout">What we ruled out</a></li>
+      <li><a href="#model">From EDA to model</a></li>
+      <li><a href="#results">Results</a></li>
+      <li><a href="#conclusion">Conclusion</a></li>
+    </ol>
+    <button class="theme-btn" id="themeBtn" type="button">Switch to dark</button>
+  </nav>
+
+  <main>
+    <section id="answer" class="hero">
+      <div class="byline">Exploratory data analysis for the AML Alert Prioritization task</div>
+      <h1>Alerts get escalated when cash is large for that customer</h1>
+      <p class="dek">We explored 14,000 labelled AML alerts and 7 million transactions. The burst of activity that fires an alert looks the same for escalated and dismissed cases. What separates them is how big a customer's cash deposits and card payments are compared with their own bank transfers.</p>
+      <div class="hero-fig">
+        <p class="fig-title">Escalation rate by how large cash deposits are relative to the customer's own bank transfers</p>
+        <p class="fig-sub">14,000 training alerts split into five equal groups, from smallest to largest relative cash size</p>
+        <div class="chart hero-anim" id="c-hero"></div>
+      </div>
+      <ul class="facts">
+        <li><b>17.2%</b> of alerts escalated</li>
+        <li><b>2.7×</b> escalation rate, lowest to highest group</li>
+        <li><b>0.646</b> ROC-AUC on a 2,000-alert holdout</li>
+      </ul>
+    </section>
+
+    <section id="approach">
+      <h2>The task and how we approached it</h2>
+      <div class="prose">
+        <p>A monitoring unit receives automated alerts built from each customer's transaction history. Specialists escalate some alerts and dismiss the rest. We predict the probability that each of 6,000 hidden test alerts is escalated, scored by ROC-AUC. A good ranking lets analysts open the riskiest alerts first.</p>
+        <p>We treated the EDA as a series of hypotheses. Each observation became a candidate feature, and a feature was only kept if it improved a fixed validation score.</p>
+      </div>
+      <ol class="steps">
+        <li><b>Explore</b>Structure, target, time, types, sizes</li>
+        <li><b>Hypothesise</b>AML red flags from FATF guidance</li>
+        <li><b>Engineer</b>Summarise each alert's history into one row</li>
+        <li><b>Validate</b>12,000 alerts in 5-fold CV, 2,000 locked away</li>
+        <li><b>Model</b>Keep only what improves validation AUC</li>
+      </ol>
+    </section>
+
+    <section id="data">
+      <h2>The data: one alert, hundreds of transactions</h2>
+      <div class="prose">
+        <p>The data is relational. Each alert in the signals table links to many rows in the transactions table through <code>signal_id</code>. The data is synthetic and localised for the hackathon; it contains no real customer records.</p>
+      </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>File</th><th class="num">Rows</th><th>Columns</th></tr></thead>
+        <tbody>
+          <tr><td>train_signals.csv</td><td class="num">14,000</td><td>signal_id, signal_sanasi (alert date), eskalatsiya (1 = escalated)</td></tr>
+          <tr><td>train_transactions.parquet</td><td class="num">6,987,663</td><td>signal_id, tranzaksiya_vaqti (timestamp), kirim_chiqim (in/out), tranzaksiya_turi (card, bank transfer, cash, cross-border), miqdor_indeksi (standardised size)</td></tr>
+          <tr><td>test_signals.csv</td><td class="num">6,000</td><td>signal_id, signal_sanasi</td></tr>
+          <tr><td>test_transactions.parquet</td><td class="num">3,027,575</td><td>same columns as training transactions</td></tr>
+        </tbody>
+      </table></div>
+      <div class="prose">
+        <p>Alerts are dated from 1 January 2025 to 31 December 2026. Every alert carries exactly 180 days of history, so transactions start in July 2024. No value is missing. A typical alert has <strong class="lead-num">461</strong> transactions, with a range from 1 to 2,279. Escalated alerts have slightly more (median 493 against 455).</p>
+      </div>
+      <figure>
+        <p class="fig-title">Transactions per alert</p>
+        <div class="legend"><span class="s-dis"><i></i>Dismissed</span><span class="s-esc"><i></i>Escalated</span></div>
+        <div class="chart" id="c-txper"></div>
+        <figcaption>Share of alerts in each 100-transaction bin. The escalated curve sits slightly to the right: more activity, but heavily overlapping.</figcaption>
+      </figure>
+    </section>
+
+    <section id="target">
+      <h2>The target: 17% escalated, steady over time</h2>
+      <div class="prose">
+        <p>2,405 of 14,000 training alerts (17.2%) were escalated. The rate stays between 16% and 19% in every quarter, so there is no trend for the model to chase. The test set has the same quarterly mix as the training set, matching to the fourth decimal place. That tells us the organisers sampled by date, so a random stratified split is a fair way to validate.</p>
+      </div>
+      <div class="two">
+        <figure>
+          <p class="fig-title">Escalation rate by quarter</p>
+          <div class="chart" id="c-qrate"></div>
+          <figcaption>Dashed line: overall rate of 17.2%.</figcaption>
+        </figure>
+        <figure>
+          <p class="fig-title">Share of alerts per quarter</p>
+          <div class="legend"><span class="s-main"><i></i>Training</span><span class="s-gold"><i></i>Test</span></div>
+          <div class="chart" id="c-qshare"></div>
+          <figcaption>The two sets have identical time profiles.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="time">
+      <h2>Activity over time, and the 180-second burst</h2>
+      <div class="prose">
+        <p>Looking at when transactions happen relative to the alert revealed the most striking structure in the data. Almost every alert (98.9%) has a dense burst of transactions in the final <strong>180 seconds</strong> before the alert timestamp: about <strong>39</strong> on average, against a background of 0.04 per hour. The burst holds 7.9% of all transactions and looks identical in the test set (39.3 per alert).</p>
+        <p>Nothing happens after the alert day, so there is no leakage from the future. Only 0.06% of transactions fall on the alert date itself.</p>
+      </div>
+      <figure>
+        <p class="fig-title">Transactions per alert in the last 15 minutes before the alert</p>
+        <div class="chart" id="c-burst"></div>
+        <figcaption>30-second bins. The burst starts exactly 180 seconds before the alert and there is almost nothing before it.</figcaption>
+      </figure>
+      <div class="prose">
+        <p>Outside the burst, activity fades steadily as the alert approaches, from about 22 transactions a week four to five months out to 7 in the final week. Escalated customers are consistently about 5% more active in every week. Their typical transaction size is also consistently smaller, and the gap does not widen near the alert.</p>
+      </div>
+      <div class="two">
+        <figure>
+          <p class="fig-title">Transactions per alert per week</p>
+          <div class="legend"><span class="s-dis"><i class="line"></i>Dismissed</span><span class="s-esc"><i class="line"></i>Escalated</span></div>
+          <div class="chart" id="c-weekly"></div>
+        </figure>
+        <figure>
+          <p class="fig-title">Average transaction size per week</p>
+          <div class="legend"><span class="s-dis"><i class="line"></i>Dismissed</span><span class="s-esc"><i class="line"></i>Escalated</span></div>
+          <div class="chart" id="c-weeklyamt"></div>
+        </figure>
+      </div>
+      <div class="callout"><p>The burst is what triggers an alert, not what decides it. Its size barely differs between classes (AUC 0.51). The difference is a stable trait of the customer, visible across all 180 days.</p></div>
+      <div class="prose"><p>This finding shaped our features. We split every alert into three segments: the burst, the 180-day history and the rare post-alert rows. We then summarised the history as stable customer traits rather than recent change.</p></div>
+    </section>
+
+    <section id="types">
+      <h2>Incoming versus outgoing, and transaction types</h2>
+      <div class="prose">
+        <p>Three in four transactions are incoming. Cards and bank transfers make up 93% of all activity, cash 6% and cross-border payments under 0.5%. The mix is almost the same for both classes: 75.3% incoming for escalated against 75.7% for dismissed, and type shares differ by at most 0.2 points.</p>
+      </div>
+      <figure>
+        <p class="fig-title">Transactions by type and direction (training set, millions)</p>
+        <div class="legend"><span class="s-main"><i></i>Incoming (kirim)</span><span class="s-gold"><i></i>Outgoing (chiqim)</span></div>
+        <div class="chart" id="c-comp"></div>
+      </figure>
+      <div class="prose">
+        <p>The mix does not separate the classes, but it strongly shapes transaction size. Cross-border payments sit about 2 standard units above incoming card payments, and outgoing transactions are larger than incoming ones within every type. A raw average across a customer's transactions therefore mostly measures their payment mix. That is why we compare sizes within each type and direction.</p>
+      </div>
+      <figure>
+        <p class="fig-title">Average size by type and direction, per class</p>
+        <div class="legend"><span class="s-dis"><i></i>Dismissed</span><span class="s-esc"><i></i>Escalated</span></div>
+        <div class="chart" id="c-cellmeans"></div>
+        <figcaption>Each row compares the two classes within one type and direction. The largest gaps are for bank transfers, where escalated customers move smaller amounts.</figcaption>
+      </figure>
+    </section>
+
+    <section id="amounts">
+      <h2>Transaction sizes</h2>
+      <div class="prose">
+        <p>The size indicator is standardised, so it measures relative rather than absolute amounts. Pick a type and direction to compare the full distributions. Most panels overlap almost perfectly. Bank transfers are the exception: escalated customers' transfers are shifted towards smaller values.</p>
+      </div>
+      <figure>
+        <div class="seg" id="cellPick" role="group" aria-label="Type and direction"></div>
+        <div class="legend"><span class="s-dis"><i class="line"></i>Dismissed</span><span class="s-esc"><i class="line"></i>Escalated</span></div>
+        <div class="chart" id="c-amt"></div>
+        <figcaption id="amtCap"></figcaption>
+      </figure>
+      <div class="prose"><p>We also checked for repeated exact amounts, a classic sign of structuring. Only four values repeat. They are per-type maximums, such as the card ceiling that appears 115 times, not round-sum deposits.</p></div>
+    </section>
+
+    <section id="redflags">
+      <h2>Testing AML red flags against the labels</h2>
+      <div class="prose">
+        <p>We took the red flags that regulators such as FATF and FinCEN list for banks and turned each one into a measurement per alert. Then we checked how the escalation rate changes across five equal-sized groups of that measurement. All panels share one scale starting at zero, so the slopes are directly comparable. AUC shows how well each measurement ranks alerts on its own, whichever direction it points; 0.50 is random.</p>
+      </div>
+      <div class="multiples" id="multiples"></div>
+      <div class="prose" style="margin-top:22px">
+        <p>Small, uniform bank transfers are the strongest single flag: escalation falls from 22% to 13% as typical transfer size grows. Activity volume, pass-through and cross-border share add weaker, positive signals. Night-time activity carries nothing, because transaction hours in this dataset are perfectly uniform.</p>
+      </div>
+    </section>
+
+    <section id="relative">
+      <h2>The key pattern: size relative to the customer's own habits</h2>
+      <div class="prose">
+        <p>On their own, cash-deposit size (AUC 0.51) and card-payment size (0.50) look useless. Yet our model gave them some of its largest weights. The explanation is that the red flag is relative. A cash deposit matters when it is large compared with what the same customer usually moves by bank transfer.</p>
+        <p>This matches FATF's description of cash activity "out of step" with a customer's profile. It also turns two useless measurements into the best single predictor we found.</p>
+      </div>
+      <div class="two">
+        <figure>
+          <p class="fig-title">Cash deposits relative to own bank transfers</p>
+          <div class="chart" id="c-rel1"></div>
+          <figcaption>AUC 0.620 on its own. Escalation rises from 9.9% to 26.6%.</figcaption>
+        </figure>
+        <figure>
+          <p class="fig-title">Card payments relative to own bank transfers</p>
+          <div class="chart" id="c-rel2"></div>
+          <figcaption>AUC 0.607 on its own. Escalation rises from 10.9% to 25.4%.</figcaption>
+        </figure>
+      </div>
+      <figure>
+        <p class="fig-title">Escalation rate by bank-transfer size and cash-deposit size</p>
+        <p class="fig-sub">Rows and columns are quintiles. Grey cells hold fewer than 50 alerts.</p>
+        <div class="chart" id="c-heat"></div>
+        <figcaption>Read along any row: for customers with the same bank-transfer size, larger cash deposits mean more escalation. Read down any column: the same cash size is less suspicious for customers who routinely move large bank transfers.</figcaption>
+      </figure>
+    </section>
+
+    <section id="ruledout">
+      <h2>What we ruled out</h2>
+      <div class="prose"><p>Several promising ideas did not hold up. We report them because they show which directions not to pursue and why our pipeline looks the way it does.</p></div>
+      <ul class="ruled">
+        <li><b>Time of day and weekday.</b> Each hour holds exactly 4.2% of transactions and each weekday 14.3%. Timestamps are uniformly random, so night or weekend features cannot carry signal.</li>
+        <li><b>Linking alerts to shared customers.</b> Real triage systems gain a lot from a customer's past escalations. Here, only 2 of 10 million transactions appear under two different alerts, so each alert is effectively a separate customer.</li>
+        <li><b>Leakage through the alert ID.</b> The ID number predicts nothing (AUC 0.499).</li>
+        <li><b>Simple yes/no rules.</b> Flags such as a cash or cross-border payment inside the trigger burst, a very young account or a short history moved the escalation rate by 2 points at most. The label behaves like a noisy score, not a rule.</li>
+        <li><b>A transaction-level model.</b> We trained a model on single transactions labelled with their alert's outcome. At first it scored 0.70 on training alerts but 0.51 on new ones, because it memorised alerts through alert-level inputs. After we removed those inputs it scored 0.56 and added nothing to the main model, so we dropped it.</li>
+        <li><b>Unsupervised anomaly detection.</b> Many banks rank alerts by how unusual a customer looks. Isolation Forest (0.52), Mahalanobis distance (0.51) and Local Outlier Factor (0.50) scored close to random: an unusual customer is not the same as an escalated one here.</li>
+        <li><b>Short-window velocity rules.</b> Counts, sums and in/out ratios over the last hour, day and week scored 0.59 on their own and slightly lowered the main model when added. Short windows mostly capture the trigger burst, which looks the same for both classes.</li>
+      </ul>
+      <figure>
+        <p class="fig-title">Share of history transactions by hour of day</p>
+        <div class="chart" id="c-hour"></div>
+        <figcaption>Dashed line: a perfectly uniform 1/24 = 4.17%.</figcaption>
+      </figure>
+    </section>
+
+    <section id="model">
+      <h2>How the EDA shaped the model</h2>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>What the EDA showed</th><th>What we did</th></tr></thead>
+        <tbody>
+          <tr><td>Each alert has a 180-second trigger burst plus a 180-day history</td><td>Split every alert into burst, history and post-alert segments and summarised each separately</td></tr>
+          <tr><td>Size depends heavily on type and direction</td><td>Computed statistics within each of the 8 type-direction cells instead of across all transactions</td></tr>
+          <tr><td>Escalation reflects stable customer traits, not a recent change</td><td>Favoured whole-history statistics (count, typical size, spread) over short-window changes</td></tr>
+          <tr><td>Rare cells such as cash and cross-border have few transactions per customer</td><td>Empirical-Bayes shrinkage: a customer's average is pulled towards the global average when based on few transactions</td></tr>
+          <tr><td>The signal is relative and smooth, and the label is noisy</td><td>Compared 100 methods under one protocol and submitted a rank average of four models from different families: peer-group analysis, Lasso, gradient boosting and automatic ratio discovery</td></tr>
+          <tr><td>The test set has the same date profile as training</td><td>Stratified random split: 12,000 alerts for 5-fold CV and 2,000 locked for one final check</td></tr>
+        </tbody>
+      </table></div>
+      <figure>
+        <p class="fig-title">Cross-validated AUC as the approach evolved</p>
+        <p class="fig-sub">5-fold CV on the same 12,000 development alerts at every step. The axis starts at 0.50, which is random ranking.</p>
+        <div class="chart" id="c-progress"></div>
+        <figcaption>The biggest jump came from simplifying, not adding. We moved from 291 overlapping features to 50 per-cell statistics that match how the data appears to be generated.</figcaption>
+      </figure>
+      <div class="two">
+        <figure>
+          <p class="fig-title">Linear model versus trees</p>
+          <div class="legend"><span class="s-main"><i></i>Logistic regression</span><span class="s-gold"><i></i>Gradient-boosted trees</span></div>
+          <div class="chart" id="c-lvt"></div>
+          <figcaption>With compact features, a linear model wins clearly. The label seems close to a weighted sum of customer traits.</figcaption>
+        </figure>
+        <figure>
+          <p class="fig-title">How strongly to shrink rare-cell averages</p>
+          <div class="chart" id="c-shrink"></div>
+          <figcaption>k is the number of "virtual" average transactions added to each customer's estimate. Five works best.</figcaption>
+        </figure>
+      </div>
+      <figure>
+        <p class="fig-title">100 methods, one protocol: the best of each approach</p>
+        <p class="fig-sub">25 bank-practice methods, 35 classical statistics and machine-learning methods, 29 mathematical methods and 11 ensembles, all on the same folds and the same holdout.</p>
+        <div class="legend"><span class="s-main"><i></i>12k cross-validation</span><span class="s-gold"><i></i>2k holdout</span></div>
+        <div class="chart" id="c-families"></div>
+        <figcaption>Methods that ignore amount levels (anomaly detection, Markov chains, Benford's law) sit near random. The best single methods tie around 0.646. Averaging four of them from different families gave the best result, and a paired bootstrap on the cross-validation predictions confirmed the gain over our previous model (+0.004, 95% interval +0.001 to +0.007).</figcaption>
+      </figure>
+      <figure>
+        <p class="fig-title">What a linear model on the compact features relies on</p>
+        <p class="fig-sub">Standardised coefficients for the 14 largest features. Pomegranate pushes towards escalation, turquoise towards dismissal.</p>
+        <div class="chart" id="c-coef"></div>
+        <figcaption>Cash-deposit size and card-payment size push towards escalation, while bank-transfer size and spread push away. Together this is the relative pattern described above.</figcaption>
+      </figure>
+    </section>
+
+    <section id="results">
+      <h2>Results</h2>
+      <div class="prose">
+        <p>The final model is a rank average of four models from different families. It scores <strong>0.650</strong> in cross-validation and <strong>0.646</strong> on the 2,000-alert holdout, which none of our decisions had touched. The two numbers agree, so the model is not overfitting. With 2,000 alerts the holdout's 95% bootstrap interval is 0.614 to 0.676. For the submission we retrained on all 14,000 alerts.</p>
+      </div>
+      <figure>
+        <p class="fig-title">Cross-validation against the locked holdout</p>
+        <div class="legend"><span class="s-main"><i></i>12k cross-validation</span><span class="s-gold"><i></i>2k holdout</span></div>
+        <div class="chart" id="c-cvhold"></div>
+      </figure>
+      <h3>What this means for an analyst's queue</h3>
+      <div class="prose"><p>Move the slider to choose how much of the queue to review, starting from the highest-scored alerts. Measured on the holdout.</p></div>
+      <figure>
+        <div class="slider-row">
+          <label for="cap" class="fig-title" style="margin:0">Alerts reviewed</label>
+          <input id="cap" type="range" min="5" max="100" step="5" value="30" aria-describedby="capOut">
+        </div>
+        <p class="slider-out" id="capOut" aria-live="polite"></p>
+        <div class="legend"><span class="s-main"><i class="line"></i>Our ranking</span><span class="s-muted"><i class="line dash"></i>Random order</span></div>
+        <div class="chart" id="c-capture"></div>
+      </figure>
+      <figure>
+        <p class="fig-title">Escalation rate by score decile on the holdout</p>
+        <div class="chart" id="c-decile"></div>
+        <figcaption>The top-scored tenth of alerts is escalated 32.5% of the time; the three lowest-scored tenths, 8 to 10%.</figcaption>
+      </figure>
+    </section>
+
+    <section id="conclusion" class="conclusion">
+      <h2>Conclusion</h2>
+      <ol>
+        <li><strong>The alert trigger is not the story.</strong> Every alert comes with a 180-second burst of about 39 transactions, and it looks the same for escalated and dismissed cases.</li>
+        <li><strong>Escalation follows the customer, not the moment.</strong> Escalated customers differ consistently across the whole 180-day history, not just before the alert.</li>
+        <li><strong>The strongest red flag is relative.</strong> Cash deposits and card payments that are large compared with the customer's own bank transfers raise escalation from 10% to 27%. Of the standard red flags taken one at a time, small and uniform bank transfers are the strongest.</li>
+        <li><strong>Simple beat complex.</strong> 50 per-cell statistics with shrinkage and a linear model outperformed 291 features with boosted trees. This suggests the labels are a noisy weighted score of customer traits.</li>
+        <li><strong>Diverse models, honest estimate.</strong> Of 100 methods compared, a rank average of four models from different families worked best. CV 0.650 and holdout 0.646 agree. Reviewing the top 30% of alerts catches about 48% of escalations, 1.6 times what random review would.</li>
+      </ol>
+      <footer>
+        <p>Team Spotlight, WIUT Hackathon 2026. All figures are computed from the competition's training data; the test labels are hidden and were never used. The full pipeline, from raw files to submission, is in our reproducible Jupyter notebook.</p>
+      </footer>
+    </section>
+  </main>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+const D = {"overview":{"train_alerts":14000,"test_alerts":6000,"train_tx":6987663,"test_tx":3027575,"target_rate":0.1718,"n_esc":2405,"tx_min":"2024-07-05","tx_max":"2026-12-31","sig_min":"2025-01-01","sig_max":"2026-12-31"},"quarters":{"labels":["2025Q1","2025Q2","2025Q3","2025Q4","2026Q1","2026Q2","2026Q3","2026Q4"],"rate":[0.1775,0.1689,0.158,0.1673,0.1752,0.1747,0.1765,0.1885],"n_train":[1527,1433,2177,2451,2249,1877,1241,1045],"share_train":[0.1091,0.1024,0.1555,0.1751,0.1606,0.1341,0.0886,0.0746],"share_test":[0.109,0.1023,0.1553,0.1752,0.1607,0.1342,0.0887,0.0747]},"tx_per_alert":{"bins":[0,100,200,300,400,500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2100,2200],"dismissed":[0.0653,0.0944,0.1258,0.1384,0.1347,0.12,0.0974,0.0729,0.0518,0.0367,0.0257,0.0157,0.0087,0.0048,0.0036,0.0018,0.0011,0.0003,0.0002,0.0003,0.0003,0.0001,0.0001],"escalated":[0.059,0.079,0.1123,0.1218,0.1405,0.126,0.1035,0.0915,0.0574,0.0387,0.0266,0.0158,0.01,0.0075,0.0046,0.0025,0.0012,0.0017,0.0,0.0,0.0004,0.0,0.0],"median":461,"mean":499.1,"min":1,"max":2279,"med0":455,"med1":493},"weekly":{"weeks_before":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25],"tx_dismissed":[7.392,8.234,9.337,10.551,11.675,12.896,14.214,15.377,16.493,17.528,18.519,19.452,20.217,20.832,21.358,21.8,22.064,22.252,22.329,22.168,22.064,21.759,21.408,20.94,20.43,13.508],"tx_escalated":[7.719,8.54,9.758,11.138,12.484,13.899,15.295,16.485,17.822,18.93,19.888,20.937,21.562,22.311,22.947,23.215,23.351,23.486,23.596,23.4,23.181,22.936,22.615,21.83,21.379,14.318],"amt_dismissed":[-0.3528,-0.3455,-0.3271,-0.3063,-0.2834,-0.2569,-0.2354,-0.2175,-0.1922,-0.1736,-0.1543,-0.1376,-0.1163,-0.0998,-0.0837,-0.0668,-0.0489,-0.0316,-0.0187,-0.0001,0.015,0.0262,0.0433,0.0547,0.0687,0.0781],"amt_escalated":[-0.4195,-0.4217,-0.3911,-0.3737,-0.3464,-0.31,-0.2845,-0.2717,-0.2462,-0.2311,-0.2035,-0.1869,-0.173,-0.1509,-0.1315,-0.1278,-0.1037,-0.0926,-0.0823,-0.0723,-0.0473,-0.04,-0.0184,-0.0098,0.0074,0.019]},"burst_seconds":{"edges":[0,30,60,90,120,150,180,210,240,270,300,330,360,390,420,450,480,510,540,570,600,630,660,690,720,750,780,810,840,870],"tx_per_alert":[6.523,6.692,6.713,6.714,6.724,5.827,0.0,0.0,0.001,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]},"last72h":{"hours_before":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71],"tx_per_alert":[39.228,0.039,0.039,0.039,0.04,0.042,0.043,0.044,0.04,0.242,0.045,0.043,0.04,0.042,0.041,0.038,0.04,0.041,0.041,0.04,0.042,0.041,0.041,0.041,0.038,0.043,0.042,0.04,0.038,0.043,0.044,0.039,0.041,0.042,0.04,0.04,0.04,0.043,0.044,0.041,0.041,0.045,0.044,0.043,0.043,0.042,0.041,0.04,0.04,0.042,0.041,0.041,0.044,0.041,0.042,0.043,0.044,0.042,0.039,0.042,0.042,0.041,0.04,0.046,0.043,0.043,0.041,0.042,0.04,0.038,0.046,0.043]},"burst_stats":{"mean":39.2,"median":31,"share_with":0.9888,"share_tx":0.0785,"post_rows":3934,"after_day":0,"max_after_s":86399.0,"test_mean":39.3},"hour":{"share":[0.04174,0.04176,0.04165,0.04176,0.04182,0.04178,0.04161,0.04162,0.04169,0.04164,0.04178,0.04157,0.04166,0.04167,0.0421,0.04157,0.04165,0.04161,0.04151,0.04154,0.04155,0.04158,0.04157,0.04156]},"dow":{"share":[0.14276,0.14283,0.14265,0.14241,0.14408,0.14266,0.1426]},"composition":{"types":["bank_otkazmasi","karta","naqd","xalqaro"],"kirim":[2045432,2882850,334221,24377],"chiqim":[709255,875947,108125,7456]},"amount":{"centers":[-3.9,-3.7,-3.5,-3.3,-3.1,-2.9,-2.7,-2.5,-2.3,-2.1,-1.9,-1.7,-1.5,-1.3,-1.1,-0.9,-0.7,-0.5,-0.3,-0.1,0.1,0.3,0.5,0.7,0.9,1.1,1.3,1.5,1.7,1.9,2.1,2.3,2.5,2.7,2.9,3.1,3.3,3.5,3.7,3.9,4.1,4.3,4.5,4.7,4.9,5.1,5.3,5.5,5.7,5.9,6.1,6.3,6.5,6.7,6.9],"cells":{"karta|kirim":{"n":2882850,"mean":-0.537,"std":0.658,"mean0":-0.531,"mean1":-0.566,"d0":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0018,0.0474,0.0554,0.1079,0.1951,0.3163,0.457,0.576,0.6373,0.6269,0.5519,0.4452,0.335,0.2363,0.157,0.1003,0.0621,0.0383,0.0222,0.013,0.0075,0.0043,0.0024,0.0014,0.0008,0.0005,0.0003,0.0001,0.0001,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],"d1":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0033,0.0472,0.0594,0.121,0.2152,0.3415,0.483,0.5949,0.6442,0.6263,0.5362,0.4232,0.3142,0.2156,0.1451,0.0921,0.057,0.0336,0.0201,0.011,0.0071,0.0038,0.0022,0.0014,0.0007,0.0003,0.0002,0.0001,0.0001,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]},"karta|chiqim":{"n":875947,"mean":-0.076,"std":0.841,"mean0":-0.075,"mean1":-0.081,"d0":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0047,0.0309,0.0409,0.059,0.099,0.1536,0.2284,0.3137,0.3972,0.465,0.5049,0.5076,0.4685,0.4111,0.3397,0.2695,0.2056,0.1535,0.1101,0.0767,0.053,0.0359,0.0249,0.0158,0.011,0.0069,0.0043,0.003,0.0019,0.0013,0.0007,0.0005,0.0009,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],"d1":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0097,0.0344,0.0421,0.064,0.1035,0.1648,0.2339,0.3176,0.392,0.4637,0.4922,0.4906,0.4632,0.4046,0.3391,0.2678,0.2043,0.1522,0.112,0.0803,0.0541,0.0371,0.0255,0.0171,0.0123,0.0075,0.0044,0.0036,0.0022,0.0016,0.0007,0.0007,0.0009,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]},"bank_otkazmasi|kirim":{"n":2045432,"mean":0.077,"std":1.116,"mean0":0.097,"mean1":-0.016,"d0":[0.0,0.0,0.0,0.0,0.0,0.0245,0.0144,0.0219,0.0324,0.0457,0.065,0.0897,0.1224,0.1592,0.2039,0.2501,0.295,0.3342,0.3589,0.3707,0.3715,0.3568,0.3288,0.2974,0.2586,0.218,0.1813,0.1463,0.1153,0.0888,0.0678,0.0514,0.0375,0.0275,0.0199,0.0139,0.0098,0.0068,0.0049,0.0031,0.0023,0.0015,0.0011,0.0007,0.0005,0.0003,0.0002,0.0001,0.0001,0.0001,0.0,0.0,0.0,0.0,0.0],"d1":[0.0,0.0,0.0,0.0,0.0,0.025,0.0156,0.0243,0.0373,0.0527,0.0753,0.1036,0.1392,0.1822,0.2246,0.2753,0.3186,0.3591,0.3759,0.3876,0.3734,0.3548,0.3193,0.2811,0.2389,0.1978,0.1584,0.1255,0.094,0.0724,0.054,0.0391,0.0294,0.0209,0.014,0.01,0.0069,0.0047,0.003,0.0023,0.0016,0.001,0.0006,0.0004,0.0003,0.0001,0.0002,0.0,0.0001,0.0,0.0,0.0,0.0,0.0,0.0]},"bank_otkazmasi|chiqim":{"n":709255,"mean":0.318,"std":1.155,"mean0":0.344,"mean1":0.201,"d0":[0.0,0.0,0.0,0.0,0.0,0.0128,0.0137,0.0143,0.0211,0.0313,0.0453,0.0653,0.0885,0.1197,0.1593,0.201,0.2429,0.2824,0.3193,0.3467,0.3617,0.3586,0.346,0.3265,0.2941,0.2599,0.2235,0.1875,0.1535,0.1258,0.0995,0.0765,0.0586,0.0442,0.0329,0.0247,0.0176,0.0132,0.0096,0.0068,0.0046,0.0033,0.0022,0.0017,0.0012,0.0007,0.0005,0.0004,0.0003,0.0002,0.0002,0.0001,0.0,0.0001,0.0],"d1":[0.0,0.0,0.0,0.0,0.0,0.0088,0.0184,0.0164,0.0232,0.0351,0.0502,0.0756,0.1044,0.1397,0.1807,0.2301,0.2743,0.3146,0.3594,0.3809,0.3804,0.3665,0.3403,0.3106,0.2752,0.2386,0.1995,0.1591,0.1244,0.0992,0.0782,0.0586,0.0464,0.0313,0.0239,0.0164,0.0126,0.0085,0.0054,0.0044,0.0025,0.0022,0.0012,0.0006,0.0009,0.0003,0.0004,0.0002,0.0003,0.0,0.0,0.0,0.0,0.0,0.0]},"naqd|kirim":{"n":334221,"mean":0.452,"std":0.756,"mean0":0.449,"mean1":0.464,"d0":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0067,0.0538,0.1102,0.175,0.2896,0.3959,0.4728,0.5023,0.5059,0.4894,0.4539,0.3962,0.33,0.2583,0.1934,0.135,0.0898,0.0593,0.0363,0.0202,0.0116,0.0068,0.0037,0.002,0.001,0.0004,0.0002,0.0001,0.0001,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],"d1":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0045,0.0516,0.1043,0.1734,0.2822,0.3974,0.469,0.5103,0.4993,0.4845,0.4467,0.3844,0.3379,0.2678,0.1964,0.1363,0.0967,0.0618,0.0401,0.0233,0.014,0.0085,0.0041,0.002,0.0014,0.0012,0.0003,0.0002,0.0001,0.0001,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]},"naqd|chiqim":{"n":108125,"mean":0.785,"std":0.868,"mean0":0.792,"mean1":0.756,"d0":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0118,0.0454,0.0725,0.1122,0.1716,0.2417,0.294,0.3595,0.4087,0.4241,0.4496,0.4339,0.4065,0.3692,0.3103,0.2531,0.1925,0.1461,0.1047,0.0692,0.048,0.0296,0.0186,0.0113,0.0069,0.0038,0.0026,0.0013,0.0009,0.0002,0.0002,0.0003,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],"d1":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0096,0.0351,0.0703,0.104,0.173,0.2526,0.3158,0.3883,0.4252,0.4566,0.463,0.4414,0.393,0.3699,0.3062,0.2411,0.1755,0.133,0.086,0.0605,0.0369,0.029,0.013,0.0076,0.0054,0.0034,0.0025,0.0012,0.0005,0.0005,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]},"xalqaro|kirim":{"n":24377,"mean":1.934,"std":1.043,"mean0":1.944,"mean1":1.889,"d0":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0153,0.0425,0.0714,0.1065,0.1538,0.2098,0.2955,0.3518,0.3983,0.437,0.4063,0.3714,0.3485,0.297,0.2641,0.2475,0.2003,0.1681,0.1294,0.1171,0.0872,0.0779,0.053,0.0367,0.0314,0.0226,0.0221,0.0126,0.0073,0.0065,0.0055,0.0015,0.0013,0.0008,0.002,0.0,0.0],"d1":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0123,0.0402,0.0681,0.0994,0.1741,0.2411,0.2891,0.374,0.403,0.4655,0.4209,0.3862,0.3494,0.3059,0.2623,0.2043,0.1875,0.1719,0.1451,0.0949,0.0871,0.0525,0.0491,0.029,0.0279,0.0167,0.0156,0.0112,0.0045,0.0045,0.0011,0.0022,0.0011,0.0011,0.0011,0.0,0.0]},"xalqaro|chiqim":{"n":7456,"mean":2.169,"std":1.151,"mean0":2.209,"mean1":2.001,"d0":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0091,0.0166,0.0316,0.0614,0.0839,0.1212,0.1802,0.22,0.2599,0.3163,0.3163,0.3404,0.3554,0.3537,0.3114,0.2948,0.2939,0.2649,0.1993,0.1868,0.1611,0.1337,0.1079,0.1054,0.0722,0.0631,0.0415,0.0274,0.0241,0.0149,0.0091,0.0042,0.0042,0.0058,0.0017,0.0066,0.0,0.0],"d1":[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0105,0.0384,0.0593,0.0802,0.1255,0.143,0.1883,0.2859,0.3417,0.3033,0.3731,0.4184,0.3417,0.2685,0.3347,0.3347,0.2301,0.2266,0.122,0.1709,0.1709,0.0941,0.1081,0.0523,0.0488,0.0279,0.0174,0.0314,0.007,0.0244,0.0105,0.0035,0.0035,0.0,0.0035,0.0,0.0,0.0]}}},"type_share":{"types":["bank_otkazmasi","karta","naqd","xalqaro"],"dismissed":[0.3944,0.5381,0.0629,0.0045],"escalated":[0.3933,0.537,0.065,0.0047]},"dir_share":{"dismissed_in":0.7574,"escalated_in":0.7529},"redflags":[{"key":"bank_size","label":"Typical bank-transfer size (both directions)","family":"Structuring","rates":[0.2214,0.1943,0.1621,0.1525,0.1286],"n":[2800,2800,2800,2800,2800],"auc":0.4311,"direction":"down","strength":0.0689},{"key":"bank_spread","label":"Spread of bank-transfer sizes","family":"Structuring","rates":[0.2225,0.1779,0.1739,0.15,0.1346],"n":[2800,2800,2800,2800,2800],"auc":0.4395,"direction":"down","strength":0.0605},{"key":"activity","label":"Total transactions in 180 days","family":"Volume","rates":[0.1543,0.1521,0.1754,0.1879,0.1893],"n":[2800,2800,2800,2800,2800],"auc":0.5306,"direction":"up","strength":0.0306},{"key":"passthru","label":"Incoming then outgoing within 24 hours","family":"Pass-through","rates":[0.1475,0.1673,0.1741,0.1813,0.1881],"n":[2780,2780,2780,2780,2780],"auc":0.5275,"direction":"up","strength":0.0275},{"key":"cash_share","label":"Share of transactions in cash","family":"Cash intensity","rates":[0.1464,0.1694,0.1791,0.1871,0.1763],"n":[2780,2780,2780,2780,2780],"auc":0.523,"direction":"up","strength":0.023},{"key":"intl_share","label":"Share of cross-border transactions","family":"Cross-border","rates":[0.1626,0.1601,0.1698,0.1759,0.1899],"n":[2780,2780,2780,2780,2780],"auc":0.5206,"direction":"up","strength":0.0206},{"key":"burst","label":"Transactions in trigger burst","family":"Trigger burst","rates":[0.1625,0.1714,0.1689,0.1761,0.18],"n":[2800,2800,2800,2800,2800],"auc":0.5127,"direction":"up","strength":0.0127},{"key":"cash_in_size","label":"Typical cash-deposit size","family":"Cash intensity","rates":[0.1729,0.1664,0.1596,0.1704,0.1896],"n":[2800,2800,2800,2800,2800],"auc":0.5097,"direction":"up","strength":0.0097},{"key":"night","label":"Night-time share (23:00\u201306:00)","family":"Timing","rates":[0.1676,0.1745,0.1629,0.186,0.1673],"n":[2780,2780,2780,2780,2780],"auc":0.5049,"direction":"up","strength":0.0049},{"key":"card_out_size","label":"Typical card-outflow size","family":"Rapid movement","rates":[0.1839,0.1686,0.1657,0.1618,0.1789],"n":[2800,2800,2800,2800,2800],"auc":0.496,"direction":"down","strength":0.004}],"relative":{"cash_minus_bank":{"auc":0.6195,"rates":[0.0993,0.1307,0.1629,0.2004,0.2657]},"cardout_minus_bank":{"auc":0.6066,"rates":[0.1086,0.1382,0.1571,0.2011,0.2539]}},"heat":{"rates":[[0.205,0.244,0.312,0.157,0.0],[0.123,0.169,0.211,0.298,0.346],[0.101,0.144,0.124,0.194,0.283],[0.084,0.075,0.135,0.14,0.225],[0.051,0.089,0.098,0.113,0.146]],"n":[[1842,698,205,51,4],[586,998,722,416,78],[238,610,938,689,325],[95,359,630,935,781],[39,135,305,709,1612]]},"capture":{"reviewed":[0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1.0],"captured":[0.093,0.189,0.2529,0.3372,0.4099,0.4797,0.5378,0.5756,0.6163,0.6715,0.7151,0.7558,0.7965,0.8517,0.8866,0.8983,0.9302,0.9448,0.9826,1.0],"holdout_auc":0.6463},"decile_rate":[0.095,0.08,0.08,0.165,0.145,0.165,0.165,0.24,0.26,0.325],"coef":{"names":["c_h_naqd_ki_mean","c_h_bank_ch_mean","c_h_bank_ki_mean","c_h_kart_ch_mean","c_h_kart_ki_size","c_h_bank_ki_std","c_b_kart_ki_size","c_h_kart_ch_std","c_h_naqd_ki_std","c_h_bank_ch_std","c_b_kart_ch_size","c_trend_ki","c_b_kart_ch_mean","c_h_xalq_ch_mean"],"values":[0.4229,-0.379,-0.3376,0.2413,0.2219,-0.1922,-0.1919,0.1868,0.143,-0.1424,0.1149,-0.0863,0.0857,-0.0796]}};
+
+/* ---------- small SVG chart kit ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+const tip = document.getElementById('tip');
+function mk(tag, a, p){ const e=document.createElementNS(NS,tag); for(const k in (a||{})){ if(k==='text') e.textContent=a[k]; else e.setAttribute(k,a[k]); } if(p) p.appendChild(e); return e; }
+function ticks(lo,hi,n){ const span=hi-lo||1, s0=span/(n||5), mag=Math.pow(10,Math.floor(Math.log10(s0))), e=s0/mag;
+  const st=(e>=7.5?10:e>=3.5?5:e>=1.5?2:1)*mag, out=[]; for(let v=Math.ceil(lo/st-1e-9)*st; v<=hi+1e-9; v+=st) out.push(+v.toFixed(10)); return out; }
+function moveTip(ev){ const pad=14; tip.style.left='0px'; tip.style.top='0px'; const r=tip.getBoundingClientRect();
+  let x=ev.clientX+pad, y=ev.clientY+pad; if(x+r.width>innerWidth-8) x=ev.clientX-r.width-pad; if(y+r.height>innerHeight-8) y=ev.clientY-r.height-pad;
+  tip.style.left=Math.max(4,x)+'px'; tip.style.top=Math.max(4,y)+'px'; }
+function showTip(ev, html){ tip.innerHTML=html; tip.hidden=false; moveTip(ev); }
+function bindTip(e, html){ e.addEventListener('pointerenter',ev=>showTip(ev,html)); e.addEventListener('pointermove',moveTip); e.addEventListener('pointerleave',()=>{tip.hidden=true}); }
+const pct=(v,d=1)=>(v*100).toFixed(d)+'%';
+const f3=v=>v.toFixed(3);
+function frame(host, height, m){ host.innerHTML=''; const W=Math.max(260, Math.floor(host.clientWidth)); const H=height;
+  const svg=mk('svg',{viewBox:`0 0 ${W} ${H}`, width:W, height:H}, host);
+  return {svg, W, H, m, iw:W-m.l-m.r, ih:H-m.t-m.b, g:mk('g',{transform:`translate(${m.l},${m.t})`}, svg)}; }
+function yAxis(f, y, tk, fmt, title){ for(const v of tk){ const yy=y(v); mk('line',{x1:0,x2:f.iw,y1:yy,y2:yy,class:'grid'},f.g);
+    mk('text',{x:-8,y:yy,class:'tick','text-anchor':'end','dominant-baseline':'middle',text:fmt(v)},f.g); }
+  if(title) mk('text',{x:-f.m.l+2,y:-12,class:'axt',text:title},f.g); }
+function narrow(){ return innerWidth < 560; }
+function tlab(g,x,y,text){ const t=mk('text',{x, y, 'text-anchor':'middle', class:'tick'}, g); String(text).split('\n').forEach((ln,i)=>mk('tspan',{x, dy:i?'1.2em':'0', text:ln}, t)); return t; }
+
+function bars(host, o){
+  const S=o.series, n=o.labels.length;
+  const f=frame(host, o.height||240, {t:o.yTitle?30:14, r:12, b:(o.xTitle?52:32)+(o.twoLine?15:0), l:o.ml||46});
+  const yMax=o.yMax ?? Math.max(...S.flatMap(s=>s.values.filter(v=>v!=null)))*1.12;
+  const y=v=>f.ih - v/yMax*f.ih, band=f.iw/n, gap=band*(o.gap??0.3), bw=(band-gap)/S.length;
+  yAxis(f, y, ticks(0,yMax,o.nt||4), o.fmt, o.yTitle);
+  o.labels.forEach((lab,i)=>{
+    S.forEach((s,j)=>{ const v=s.values[i]; if(v==null) return; const x=i*band+gap/2+j*bw;
+      const r=mk('rect',{x:x.toFixed(2), y:y(v).toFixed(2), width:Math.max(1,bw-(S.length>1?2:0)).toFixed(2), height:(f.ih-y(v)).toFixed(2), rx:1.5, class:'bar '+(s.cls||'s-main')}, f.g);
+      if(o.anim) r.style.animationDelay=(0.08*i)+'s';
+      bindTip(r, `<b>${o.tipLabels?o.tipLabels[i]:lab}</b><br>${s.name?`<i class="sw ${s.cls}"></i>${s.name}: `:''}${(o.tipFmt||o.fmt)(v,i)}`);
+      if(o.valueLabels) mk('text',{x:x+bw/2, y:y(v)-6, 'text-anchor':'middle', class:'vlab', text:(o.vFmt||o.fmt)(v)}, f.g); });
+    const every=o.every||1; if(i%every===0) tlab(f.g, i*band+band/2, f.ih+18, lab); });
+  mk('line',{x1:0,x2:f.iw,y1:f.ih,y2:f.ih,class:'axis'},f.g);
+  if(o.ref!=null){ const yy=y(o.ref); mk('line',{x1:0,x2:f.iw,y1:yy,y2:yy,class:'ref'},f.g);
+    if(o.refLabel) mk('text',{x:4, y:yy-6, 'text-anchor':'start', class:'reflab', text:o.refLabel}, f.g); }
+  if(o.xTitle) mk('text',{x:f.iw/2, y:f.ih+42, 'text-anchor':'middle', class:'axt', text:o.xTitle}, f.g);
+  return f;
+}
+
+function lines(host, o){
+  const f=frame(host, o.height||240, {t:o.yTitle?30:14, r:o.mr||14, b:(o.xTitle?52:32)+(o.twoLine?15:0), l:o.ml||46});
+  const xs=o.x, xMin=o.xMin??Math.min(...xs), xMax=o.xMax??Math.max(...xs);
+  const all=o.series.flatMap(s=>s.values.filter(v=>v!=null));
+  const yMin=o.yMin??Math.min(...all), yMax=o.yMax??Math.max(...all);
+  const x=v=>(v-xMin)/(xMax-xMin)*f.iw, y=v=>f.ih-(v-yMin)/(yMax-yMin)*f.ih;
+  yAxis(f, y, o.yTicks||ticks(yMin,yMax,o.nt||4), o.fmt, o.yTitle);
+  for(const t of (o.xTicks||ticks(xMin,xMax,narrow()?4:6))) tlab(f.g, x(t), f.ih+18, (o.xFmt||String)(t));
+  mk('line',{x1:0,x2:f.iw,y1:f.ih,y2:f.ih,class:'axis'},f.g);
+  if(o.before) o.before(f,x,y);
+  for(const s of o.series){
+    const pts=s.values.map((v,i)=>v==null?null:[x(xs[i]),y(v)]).filter(Boolean);
+    const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join('');
+    if(s.area) mk('path',{d:d+`L${pts[pts.length-1][0].toFixed(1)},${f.ih}L${pts[0][0].toFixed(1)},${f.ih}Z`, class:'area '+s.cls}, f.g);
+    mk('path',{d, class:'ln '+s.cls+(s.dash?' dash':'')}, f.g);
+    if(s.dots) pts.forEach(p=>mk('circle',{cx:p[0],cy:p[1],r:3.5,class:'dot '+s.cls},f.g));
+  }
+  if(o.after) o.after(f,x,y);
+  if(o.xTitle) mk('text',{x:f.iw/2, y:f.ih+42, 'text-anchor':'middle', class:'axt', text:o.xTitle}, f.g);
+  if(o.hover!==false){
+    const vl=mk('line',{y1:0,y2:f.ih,class:'cross',visibility:'hidden'},f.g);
+    const hit=mk('rect',{x:0,y:0,width:f.iw,height:f.ih,fill:'transparent'},f.g);
+    hit.addEventListener('pointermove',ev=>{ const b=f.svg.getBoundingClientRect(); const px=(ev.clientX-b.left)*(f.W/b.width)-f.m.l;
+      let bi=0,bd=1e9; xs.forEach((xv,i)=>{const dd=Math.abs(x(xv)-px); if(dd<bd){bd=dd;bi=i}});
+      vl.setAttribute('x1',x(xs[bi])); vl.setAttribute('x2',x(xs[bi])); vl.setAttribute('visibility','visible');
+      showTip(ev, `<b>${(o.xTip||o.xFmt||String)(xs[bi])}</b>`+o.series.filter(s=>!s.noTip).map(s=>`<br><i class="sw ${s.cls}"></i>${s.name}: ${s.values[bi]==null?'n/a':(o.tipFmt||o.fmt)(s.values[bi])}`).join('')); });
+    hit.addEventListener('pointerleave',()=>{ vl.setAttribute('visibility','hidden'); tip.hidden=true; });
+  }
+  return {f,x,y};
+}
+
+/* dot plot: rows of labelled points on a shared horizontal scale */
+function dots(host, o){
+  const st=narrow(), lw=st?14:Math.min(o.labelW||260, host.clientWidth*0.42);
+  const rowH=(o.rowH||34)+(st?16:0), n=o.rows.length;
+  const f=frame(host, n*rowH+44, {t:8, r:st?34:24, b:36, l:lw});
+  const x=v=>(v-o.min)/(o.max-o.min)*f.iw;
+  for(const t of ticks(o.min,o.max,narrow()?4:6)){ mk('line',{x1:x(t),x2:x(t),y1:0,y2:n*rowH,class:'grid'},f.g);
+    mk('text',{x:x(t), y:n*rowH+18, 'text-anchor':'middle', class:'tick', text:o.fmt(t)}, f.g); }
+  if(o.xTitle) mk('text',{x:f.iw/2, y:n*rowH+34, 'text-anchor':'middle', class:'axt', text:o.xTitle}, f.g);
+  o.rows.forEach((r,i)=>{ const cy=st? i*rowH+rowH-13 : i*rowH+rowH/2;
+    const lab=st? mk('text',{x:0, y:i*rowH+12, 'text-anchor':'start', class:'rowlab', text:r.label}, f.g)
+                : mk('text',{x:-12, y:cy, 'text-anchor':'end', 'dominant-baseline':'middle', class:'rowlab', text:r.label}, f.g);
+    if(r.bold) lab.style.fontWeight='600';
+    const vs=r.points.filter(p=>p.v!=null).map(p=>x(p.v));
+    if(vs.length>1) mk('line',{x1:Math.min(...vs), x2:Math.max(...vs), y1:cy, y2:cy, class:'conn'}, f.g);
+    r.points.forEach(p=>{ if(p.v==null) return; const c=mk('circle',{cx:x(p.v), cy, r:6.5, class:'dot '+p.cls}, f.g);
+      bindTip(c, `<b>${r.label}</b><br><i class="sw ${p.cls}"></i>${p.name}: ${o.tipFmt?o.tipFmt(p.v):o.fmt(p.v)}`);
+      if(o.valueLabels) mk('text',{x:x(p.v)+(p.labelLeft?-11:11), y:cy, 'text-anchor':p.labelLeft?'end':'start', 'dominant-baseline':'middle', class:'vlab', text:o.vFmt(p.v)}, f.g); });
+  });
+  return f;
+}
+
+function diverge(host, o){
+  const st=narrow(), lw=st?14:Math.min(250, host.clientWidth*0.4), rowH=st?40:28, n=o.labels.length;
+  const f=frame(host, n*rowH+40, {t:4, r:st?14:40, b:34, l:lw});
+  const mx=Math.max(...o.values.map(Math.abs))*1.08, x=v=>(v+mx)/(2*mx)*f.iw;
+  for(const t of ticks(-mx,mx,4)){ mk('line',{x1:x(t),x2:x(t),y1:0,y2:n*rowH,class:'grid'},f.g);
+    mk('text',{x:x(t), y:n*rowH+18, 'text-anchor':'middle', class:'tick', text:t.toFixed(1)}, f.g); }
+  o.labels.forEach((lab,i)=>{ const v=o.values[i], y0=st? i*rowH+18 : i*rowH+5, h=st? rowH-22 : rowH-10;
+    if(st) mk('text',{x:0, y:i*rowH+13, 'text-anchor':'start', class:'rowlab', text:lab}, f.g);
+    else mk('text',{x:-12, y:y0+h/2, 'text-anchor':'end', 'dominant-baseline':'middle', class:'rowlab', text:lab}, f.g);
+    const r=mk('rect',{x:Math.min(x(0),x(v)), y:y0, width:Math.abs(x(v)-x(0)), height:h, rx:1.5, class:'bar '+(v>0?'s-esc':'s-dis')}, f.g);
+    bindTip(r, `<b>${lab}</b><br>Coefficient: ${v>0?'+':''}${v.toFixed(3)}<br>${v>0?'Pushes towards escalation':'Pushes towards dismissal'}`); });
+  mk('line',{x1:x(0),x2:x(0),y1:-2,y2:n*rowH,class:'axis'},f.g);
+  return f;
+}
+
+function heat(host, o){
+  const lw=narrow()?74:118, f=frame(host, 5*48+64, {t:8, r:8, b:56, l:lw});
+  const cw=f.iw/5, ch=48, vals=o.rates.flat(), hi=Math.max(...vals), lo=Math.min(...vals.filter((v,i)=>o.n.flat()[i]>=50));
+  o.rates.forEach((row,i)=>row.forEach((v,j)=>{ const n=o.n[i][j], ok=n>=50;
+    const a=ok? 0.08+0.85*(v-lo)/(hi-lo):0;
+    const r=mk('rect',{x:j*cw, y:i*ch, width:cw, height:ch, class:'hcell', style:ok?`fill:var(--esc);fill-opacity:${a.toFixed(3)}`:'fill:var(--grid)'}, f.g);
+    const t=mk('text',{x:j*cw+cw/2, y:i*ch+ch/2, 'text-anchor':'middle', 'dominant-baseline':'middle', class:'hval', text:ok?pct(v,0):'few'}, f.g);
+    t.style.fill = ok && a>0.66 ? '#fff' : 'var(--ink)';
+    bindTip(r, ok?`<b>${pct(v)}</b> escalated<br>${n.toLocaleString()} alerts<br>Bank transfers: ${o.rowNames[i]}<br>Cash deposits: ${o.colNames[j]}`:`Only ${n} alerts, too few to estimate`); }));
+  o.rowNames.forEach((nm,i)=>mk('text',{x:-10, y:i*ch+ch/2, 'text-anchor':'end', 'dominant-baseline':'middle', class:'tick', text:nm}, f.g));
+  o.colNames.forEach((nm,j)=>mk('text',{x:j*cw+cw/2, y:5*ch+16, 'text-anchor':'middle', class:'tick', text:nm}, f.g));
+  mk('text',{x:f.iw/2, y:5*ch+40, 'text-anchor':'middle', class:'axt', text:'Typical cash-deposit size (quintile)'}, f.g);
+  mk('text',{x:-lw+2, y:-0, class:'axt', text:''}, f.g);
+  const yl=mk('text',{x:0,y:0,class:'axt','text-anchor':'middle',text:'Typical bank-transfer size'}, f.g);
+  yl.setAttribute('transform',`translate(${-lw+12},${2.5*ch}) rotate(-90)`);
+  return f;
+}
+
+/* ---------- render registry ---------- */
+const R=[]; function reg(fn){ R.push(fn); fn(); }
+let rt; addEventListener('resize',()=>{ clearTimeout(rt); rt=setTimeout(()=>R.forEach(f=>f()),150); });
+const Q5=['Lowest','2nd','3rd','4th','Highest'];
+const BASE=D.overview.target_rate;
+
+/* hero */
+reg(()=>bars(document.getElementById('c-hero'),{labels:narrow()?['1','2','3','4','5']:['Lowest fifth','2nd','3rd','4th','Highest fifth'], tipLabels:Q5.map(q=>q+' group'),
+  series:[{name:'Escalated', cls:'s-esc', values:D.relative.cash_minus_bank.rates}], fmt:v=>pct(v,0), vFmt:v=>pct(v), valueLabels:true,
+  yMax:0.3, ref:BASE, refLabel:'Average 17.2%', height:narrow()?230:270, anim:true, gap:0.34}));
+setTimeout(()=>document.getElementById('c-hero').classList.remove('hero-anim'),1800);
+
+/* data */
+reg(()=>lines(document.getElementById('c-txper'),{x:D.tx_per_alert.bins.map(b=>b+50), xMin:0, xMax:2300,
+  series:[{name:'Dismissed',cls:'s-dis',values:D.tx_per_alert.dismissed,area:true},{name:'Escalated',cls:'s-esc',values:D.tx_per_alert.escalated,area:true}],
+  fmt:v=>pct(v,0), tipFmt:v=>pct(v), yMin:0, yTitle:'Share of alerts', xTitle:'Transactions per alert', xFmt:v=>v.toLocaleString(), xTip:v=>`${(v-50).toLocaleString()}–${(v+49).toLocaleString()} transactions`}));
+
+/* target */
+reg(()=>lines(document.getElementById('c-qrate'),{x:D.quarters.labels.map((_,i)=>i), xFmt:i=>'Q'+D.quarters.labels[i].slice(5)+'\n'+D.quarters.labels[i].slice(0,4), twoLine:true, xTicks:D.quarters.labels.map((_,i)=>i),
+  series:[{name:'Escalation rate',cls:'s-esc',values:D.quarters.rate,dots:true}], yMin:0, yMax:0.25, fmt:v=>pct(v,0), tipFmt:v=>pct(v), mr:18,
+  before:(f,x,y)=>{ const yy=y(BASE); mk('line',{x1:0,x2:f.iw,y1:yy,y2:yy,class:'ref'},f.g); },
+  xTip:i=>`${D.quarters.labels[i].replace('Q',' Q')} (${D.quarters.n_train[i].toLocaleString()} alerts)`}));
+reg(()=>bars(document.getElementById('c-qshare'),{labels:D.quarters.labels.map(l=>'Q'+l.slice(5)+'\n'+l.slice(0,4)), twoLine:true, tipLabels:D.quarters.labels.map(l=>l.replace('Q',' Q')),
+  series:[{name:'Training',cls:'s-main',values:D.quarters.share_train},{name:'Test',cls:'s-gold',values:D.quarters.share_test}], fmt:v=>pct(v,0), tipFmt:v=>pct(v,2), gap:0.25}));
+
+/* time */
+reg(()=>{ const e=D.burst_seconds.edges.slice().reverse(), v=D.burst_seconds.tx_per_alert.slice().reverse();
+  bars(document.getElementById('c-burst'),{labels:e.map(s=>{ const m=(s+30)/60; return Number.isInteger(m)&&(!narrow()||m%3===0||m===1)?m+' min':''; }),
+    tipLabels:e.map(s=>`${s+30} to ${s} seconds before the alert`),
+    series:[{name:'Transactions per alert',cls:'s-main',values:v}], fmt:x=>x.toFixed(0), tipFmt:x=>x.toFixed(2), yTitle:'Transactions per alert', gap:0.12, yMax:8,
+    xTitle:'Time before the alert'}); });
+const wk=D.weekly.weeks_before.slice(0,25);
+reg(()=>lines(document.getElementById('c-weekly'),{x:wk.map(w=>-w), xTicks:[-24,-18,-12,-6,0], xFmt:v=>v===0?'Final week':`${-v} wk`, xTip:v=>v===0?'Final week before the alert':`${-v} weeks before the alert`,
+  series:[{name:'Dismissed',cls:'s-dis',values:D.weekly.tx_dismissed.slice(0,25)},{name:'Escalated',cls:'s-esc',values:D.weekly.tx_escalated.slice(0,25)}],
+  yMin:0, yMax:25, fmt:v=>v.toFixed(0), tipFmt:v=>v.toFixed(1)+' per alert', yTitle:'Transactions per alert'}));
+reg(()=>lines(document.getElementById('c-weeklyamt'),{x:wk.map(w=>-w), xTicks:[-24,-18,-12,-6,0], xFmt:v=>v===0?'Final week':`${-v} wk`, xTip:v=>v===0?'Final week before the alert':`${-v} weeks before the alert`,
+  series:[{name:'Dismissed',cls:'s-dis',values:D.weekly.amt_dismissed.slice(0,25)},{name:'Escalated',cls:'s-esc',values:D.weekly.amt_escalated.slice(0,25)}],
+  yMin:-0.45, yMax:0.15, fmt:v=>v.toFixed(1), tipFmt:v=>v.toFixed(3), yTitle:'Average size (standardised)'}));
+
+/* types */
+const TYPE_NAMES={karta:'Card', bank_otkazmasi:'Bank transfer', naqd:'Cash', xalqaro:'Cross-border'};
+reg(()=>{ const c=D.composition; const order=['karta','bank_otkazmasi','naqd','xalqaro'].map(t=>c.types.indexOf(t));
+  bars(document.getElementById('c-comp'),{labels:order.map(i=>TYPE_NAMES[c.types[i]]),
+    series:[{name:'Incoming',cls:'s-main',values:order.map(i=>c.kirim[i]/1e6)},{name:'Outgoing',cls:'s-gold',values:order.map(i=>c.chiqim[i]/1e6)}],
+    fmt:v=>v.toFixed(1), tipFmt:v=>v>=0.1?v.toFixed(2)+' million':Math.round(v*1e6).toLocaleString()+' transactions', yMax:3.2, gap:0.3}); });
+const CELLS=[['karta','kirim','Card in'],['karta','chiqim','Card out'],['bank_otkazmasi','kirim','Bank transfer in'],['bank_otkazmasi','chiqim','Bank transfer out'],
+  ['naqd','kirim','Cash in'],['naqd','chiqim','Cash out'],['xalqaro','kirim','Cross-border in'],['xalqaro','chiqim','Cross-border out']];
+reg(()=>dots(document.getElementById('c-cellmeans'),{rows:CELLS.map(([t,d,nm])=>{ const c=D.amount.cells[t+'|'+d];
+    return {label:nm, points:[{name:'Dismissed',cls:'s-dis',v:c.mean0},{name:'Escalated',cls:'s-esc',v:c.mean1}]}; }),
+  min:-0.8, max:2.4, fmt:v=>v.toFixed(1), tipFmt:v=>v.toFixed(3), labelW:150, rowH:30, xTitle:'Average size (standardised)'}));
+
+/* amounts */
+let cellSel='bank_otkazmasi|chiqim';
+const pick=document.getElementById('cellPick');
+CELLS.forEach(([t,d,nm])=>{ const b=document.createElement('button'); b.type='button'; b.textContent=nm; b.dataset.k=t+'|'+d;
+  b.setAttribute('aria-pressed', String(b.dataset.k===cellSel)); b.onclick=()=>{ cellSel=b.dataset.k; pick.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.k===cellSel))); drawAmt(); }; pick.appendChild(b); });
+function drawAmt(){ const c=D.amount.cells[cellSel], xs=D.amount.centers;
+  let lo=0, hi=xs.length-1; while(lo<hi && c.d0[lo]<0.004 && c.d1[lo]<0.004) lo++; while(hi>lo && c.d0[hi]<0.004 && c.d1[hi]<0.004) hi--;
+  lines(document.getElementById('c-amt'),{x:xs.slice(lo,hi+1), series:[{name:'Dismissed',cls:'s-dis',values:c.d0.slice(lo,hi+1),area:true},{name:'Escalated',cls:'s-esc',values:c.d1.slice(lo,hi+1),area:true}],
+    yMin:0, fmt:v=>v.toFixed(1), tipFmt:v=>v.toFixed(3), xFmt:v=>v.toFixed(0), xTip:v=>'Size '+v.toFixed(2), yTitle:'Density', xTitle:'Transaction size (standardised)', height:260,
+    after:(f,x,y)=>{ [['s-dis',c.mean0],['s-esc',c.mean1]].forEach(([cls,m])=>{ if(m<xs[lo]||m>xs[hi]) return; const l=mk('line',{x1:x(m),x2:x(m),y1:0,y2:f.ih,class:'ref'},f.g); l.style.stroke=`var(${cls==='s-esc'?'--esc':'--dis'})`; }); }});
+  const name=CELLS.find(r=>r[0]+'|'+r[1]===cellSel)[2];
+  document.getElementById('amtCap').textContent=`${name}: ${c.n.toLocaleString()} transactions. Average size ${c.mean0.toFixed(3)} for dismissed and ${c.mean1.toFixed(3)} for escalated alerts (dashed lines).`; }
+reg(drawAmt);
+
+/* red flags */
+const mult=document.getElementById('multiples');
+D.redflags.forEach((r,i)=>{ const d=document.createElement('div'); d.className='multiple'+(i<2?' top':'');
+  d.innerHTML=`<div class="m-head"><span class="m-title">${r.label}</span><span class="m-meta">AUC ${Math.max(r.auc,1-r.auc).toFixed(3)}</span></div><div class="m-fam">${r.family}: ${Math.abs(r.rates[4]-r.rates[0])<0.02?'no clear trend':'escalation '+(r.rates[4]>r.rates[0]?'rises':'falls')+' from '+pct(r.rates[0],0)+' to '+pct(r.rates[4],0)}</div><div class="chart" id="rf-${r.key}"></div>`;
+  mult.appendChild(d);
+  reg(()=>bars(document.getElementById('rf-'+r.key),{labels:['Low','','','','High'], tipLabels:Q5.map(q=>q+' group'), series:[{name:'Escalated',cls:'s-esc',values:r.rates}],
+    fmt:v=>pct(v,0), tipFmt:(v,j)=>`${pct(v)} of ${r.n[j].toLocaleString()} alerts`, yMax:0.3, nt:3, ref:BASE, height:150, gap:0.3, ml:40})); });
+
+/* relative */
+reg(()=>bars(document.getElementById('c-rel1'),{labels:Q5, series:[{name:'Escalated',cls:'s-esc',values:D.relative.cash_minus_bank.rates}], fmt:v=>pct(v,0), vFmt:v=>pct(v,0), valueLabels:true, yMax:0.3, ref:BASE, height:220}));
+reg(()=>bars(document.getElementById('c-rel2'),{labels:Q5, series:[{name:'Escalated',cls:'s-esc',values:D.relative.cardout_minus_bank.rates}], fmt:v=>pct(v,0), vFmt:v=>pct(v,0), valueLabels:true, yMax:0.3, ref:BASE, height:220}));
+reg(()=>heat(document.getElementById('c-heat'),{rates:D.heat.rates, n:D.heat.n, rowNames:narrow()?['Small','2','3','4','Large']:['Smallest','2nd','3rd','4th','Largest'], colNames:narrow()?['Small','2','3','4','Large']:['Smallest','2nd','3rd','4th','Largest']}));
+
+/* ruled out */
+reg(()=>bars(document.getElementById('c-hour'),{labels:D.hour.share.map((_,i)=>String(i)), every:narrow()?6:3, tipLabels:D.hour.share.map((_,i)=>`${String(i).padStart(2,'0')}:00 to ${String(i).padStart(2,'0')}:59`),
+  series:[{name:'Share',cls:'s-main',values:D.hour.share}], fmt:v=>pct(v,0), tipFmt:v=>pct(v,2), yMax:0.05, ref:1/24, gap:0.2, height:200, xTitle:'Hour of day'}));
+
+/* model */
+const PROGRESS=[['140 alert-level features, LR and trees',0.6177],['Adding type-adjusted sizes',0.6255],['Adding behavioural profile (291 features)',0.6326],['Adding a transaction-level model',0.6320],['Compact: 50 per-cell statistics, LR',0.6368],['Adding empirical-Bayes shrinkage',0.6420],['Blend: 70% LR + 30% trees',0.6461],['Final: 4-family rank ensemble',0.6502]];
+reg(()=>dots(document.getElementById('c-progress'),{rows:PROGRESS.map(([l,v],i)=>({label:narrow()?l.replace('Adding ','+ ').replace(' (291 features)','').replace('alert-level ',''):l, bold:i===7, points:[{name:'CV AUC',cls:i===3?'s-muted':'s-main',v}]})),
+  min:0.5, max:0.66, fmt:v=>v.toFixed(2), tipFmt:v=>v.toFixed(4), valueLabels:true, vFmt:v=>v.toFixed(3), labelW:290, rowH:32, xTitle:'ROC-AUC (5-fold CV)'}));
+reg(()=>dots(document.getElementById('c-lvt'),{rows:[{label:'50 compact features',points:[{name:'Logistic regression',cls:'s-main',v:0.6368},{name:'Trees',cls:'s-gold',v:0.6224,labelLeft:true}]},
+  {label:'241 broad features',points:[{name:'Logistic regression',cls:'s-main',v:0.6222,labelLeft:true},{name:'Trees',cls:'s-gold',v:0.6233}]}],
+  min:0.605, max:0.65, fmt:v=>v.toFixed(2), tipFmt:v=>v.toFixed(4), labelW:150, rowH:44, valueLabels:true, vFmt:v=>v.toFixed(3), xTitle:'ROC-AUC (5-fold CV)'}));
+reg(()=>lines(document.getElementById('c-shrink'),{x:[0,1,2,3,4,5], xTicks:[0,1,2,3,4,5], xFmt:i=>['none','0.5','2','5','10','20'][i], xTip:i=>'k = '+['0 (none)','0.5','2','5','10','20'][i],
+  series:[{name:'CV AUC',cls:'s-main',values:[0.6368,0.6381,0.6408,0.6420,0.6417,0.6401],dots:true}], yMin:0.634, yMax:0.644, yTicks:[0.636,0.638,0.64,0.642,0.644], fmt:v=>v.toFixed(3), tipFmt:v=>v.toFixed(4), xTitle:'Shrinkage strength k', yTitle:'ROC-AUC (5-fold CV)', ml:52}));
+reg(()=>dots(document.getElementById('c-families'),{rows:[
+  ['Anomaly detection (Isolation Forest)',0.5219,0.5061],['Markov chain of transaction types',0.5272,0.5137],['Expert red-flag scorecard',0.5772,0.5796],
+  ['Short-window velocity rules',0.5942,0.5954],['Transaction tokens (TF-IDF)',0.6175,0.6199],['WoE scorecard',0.6246,0.6212],['Gradient boosting',0.6417,0.6451],
+  ['Automatic ratio discovery',0.6452,0.6393],['Lasso',0.6462,0.6420],['Peer-group analysis',0.6465,0.6394],['Final: average of the last four',0.6503,0.6463]]
+  .map(([l,c,h],i)=>({label:l,bold:i===10,points:[{name:'12k CV',cls:'s-main',v:c},{name:'2k holdout',cls:'s-gold',v:h}]})),
+  min:0.48, max:0.66, fmt:v=>v.toFixed(2), tipFmt:v=>v.toFixed(4), labelW:250, rowH:30, xTitle:'ROC-AUC'}));
+const COEF_NAMES={c_h_naqd_ki_mean:'Cash deposit size',c_h_bank_ch_mean:'Outgoing bank transfer size',c_h_bank_ki_mean:'Incoming bank transfer size',
+  c_h_kart_ch_mean:'Card payment size',c_h_kart_ki_size:'Number of incoming card payments',c_h_bank_ki_std:'Spread of incoming transfers',
+  c_b_kart_ki_size:'Incoming card payments in burst',c_h_kart_ch_std:'Spread of card payments',c_h_naqd_ki_std:'Spread of cash deposits',
+  c_h_bank_ch_std:'Spread of outgoing transfers',c_b_kart_ch_size:'Card payments in burst',c_trend_ki:'Trend in incoming sizes',
+  c_b_kart_ch_mean:'Card payment size in burst',c_h_xalq_ch_mean:'Cross-border payment size'};
+reg(()=>diverge(document.getElementById('c-coef'),{labels:D.coef.names.map(n=>COEF_NAMES[n]||n), values:D.coef.values}));
+
+/* results */
+reg(()=>dots(document.getElementById('c-cvhold'),{rows:[
+  {label:'Shrunk per-cell LR',points:[{name:'12k CV',cls:'s-main',v:0.6420},{name:'2k holdout',cls:'s-gold',v:0.6382,labelLeft:true}]},
+  {label:'Trees, all 291 features',points:[{name:'12k CV',cls:'s-main',v:0.6318},{name:'2k holdout',cls:'s-gold',v:0.6307,labelLeft:true}]},
+  {label:'Previous blend (LR + trees)',points:[{name:'12k CV',cls:'s-main',v:0.6461},{name:'2k holdout',cls:'s-gold',v:0.6432,labelLeft:true}]},
+  {label:'Final: 4-family ensemble',bold:true,points:[{name:'12k CV',cls:'s-main',v:0.6503},{name:'2k holdout',cls:'s-gold',v:0.6463,labelLeft:true}]}],
+  min:0.6, max:0.66, fmt:v=>v.toFixed(2), tipFmt:v=>v.toFixed(4), labelW:240, rowH:40, xTitle:'ROC-AUC'}));
+const capIn=document.getElementById('cap');
+function drawCap(){ const p=+capIn.value/100, i=D.capture.reviewed.findIndex(r=>Math.abs(r-p)<1e-6), c=D.capture.captured[i];
+  document.getElementById('capOut').innerHTML=`Reviewing the top <b>${pct(p,0)}</b> of alerts catches <b>${pct(c,0)}</b> of all escalations. Random order would catch ${pct(p,0)}, so that is <b>${(c/p).toFixed(2)}×</b> as effective.`;
+  lines(document.getElementById('c-capture'),{x:[0,...D.capture.reviewed], series:[{name:'Our ranking',cls:'s-main',values:[0,...D.capture.captured]},{name:'Random order',cls:'s-muted',dash:true,values:[0,...D.capture.reviewed]}],
+    yMin:0, yMax:1, xMin:0, xMax:1, fmt:v=>pct(v,0), xFmt:v=>pct(v,0), xTip:v=>'Top '+pct(v,0)+' reviewed', yTitle:'Escalations caught', xTitle:'Share of alerts reviewed', height:280,
+    after:(f,x,y)=>{ mk('line',{x1:x(p),x2:x(p),y1:y(c),y2:f.ih,class:'ref'},f.g); mk('circle',{cx:x(p),cy:y(c),r:6,class:'dot s-main'},f.g); }}); }
+capIn.addEventListener('input',drawCap); reg(drawCap);
+reg(()=>bars(document.getElementById('c-decile'),{labels:D.decile_rate.map((_,i)=>String(i+1)), tipLabels:D.decile_rate.map((_,i)=>`Score decile ${i+1} of 10`),
+  series:[{name:'Escalated',cls:'s-esc',values:D.decile_rate}], fmt:v=>pct(v,0), tipFmt:v=>pct(v), yMax:0.35, ref:BASE, refLabel:'Average', gap:0.25, xTitle:'Score decile (1 = lowest risk, 10 = highest)', height:230}));
+
+/* nav highlight + theme */
+const links=[...document.querySelectorAll('.rail a')];
+const io=new IntersectionObserver(es=>{ es.forEach(e=>{ if(e.isIntersecting){ links.forEach(a=>a.setAttribute('aria-current', String(a.getAttribute('href')==='#'+e.target.id))); } }); },{rootMargin:'-35% 0px -60% 0px'});
+document.querySelectorAll('main section').forEach(s=>io.observe(s));
+const tb=document.getElementById('themeBtn');
+function isDark(){ const t=document.documentElement.dataset.theme; return t? t==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; }
+function syncBtn(){ tb.textContent= isDark()? 'Switch to light' : 'Switch to dark'; }
+tb.onclick=()=>{ document.documentElement.dataset.theme = isDark()? 'light':'dark'; syncBtn(); };
+syncBtn();
+</script>
+</body>
+</html>
